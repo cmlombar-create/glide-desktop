@@ -1,7 +1,16 @@
+# NetBeans & Java Build Directories
 /build/
 /dist/
 /nbproject/private/
 *.class
+
+# SQLite Database & Lock/Journal Files
 glide.db
 *.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# OS & IDE Temp Files
 .DS_Store
+Thumbs.db
