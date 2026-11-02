@@ -1,20 +1,21 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Main.java to edit this template
- */
 package glide.desktop;
 
-/**
- *
- * @author sense
- */
-public class GlideDesktop {
+import glide.dao.DatabaseManager;
+import glide.ui.MainWindow;
+import javax.swing.JOptionPane;
+import javax.swing.SwingUtilities;
 
-    /**
-     * @param args the command line arguments
-     */
+/** Existing Glide Desktop application entry point. */
+public class GlideDesktop {
     public static void main(String[] args) {
-        // TODO code application logic here
+        try {
+            DatabaseManager.initialize();
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(null,
+                "Cannot initialize Glide database:\n" + e.getMessage(),
+                "Glide", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        SwingUtilities.invokeLater(() -> new MainWindow().setVisible(true));
     }
-    
 }
