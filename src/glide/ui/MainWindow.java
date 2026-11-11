@@ -19,9 +19,16 @@ import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 
+/**
+ * Primary Dashboard Window (JFrame) for the Glide Schedule Manager (SDD Sections 4.5 & 6.2).
+ * Renders the 5-column chronological JTable, Category Filter JComboBox, CRUD action bar,
+ * and starts the background AlertService polling loop.
+ */
 public class MainWindow extends JFrame {
+    // 5-column dashboard table header specification (SDD Figure 6-1)
     private static final String[] COLUMNS = {"Title", "Date & Time", "Category", "Reminder Lead", "Status"};
 
+    // Glide Black & Gold UI color constants
     private static final Color BG_DARK = new Color(18, 20, 24);
     private static final Color BG_PANEL = new Color(26, 29, 36);
     private static final Color BG_ROW_ALT = new Color(32, 36, 44);
@@ -41,13 +48,18 @@ public class MainWindow extends JFrame {
         setIconImage(createGlideIcon());
         getContentPane().setBackground(BG_DARK);
         this.controller = new EventController();
+        // Bind AlertService callback to refreshTable() whenever a reminder fires and marks an event Completed
         this.alerts = new AlertService(this.controller, this::refreshTable);
+
+        // Configure read-only DefaultTableModel so cells cannot be edited inline without validation
         this.tableModel = new DefaultTableModel(COLUMNS, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
                 return false;
             }
         };
+
+        // Configure JTable with hover tooltips showing optional event description notes
         this.eventTable = new JTable(this.tableModel) {
             @Override
             public String getToolTipText(MouseEvent e) {
@@ -70,12 +82,14 @@ public class MainWindow extends JFrame {
         setLocationRelativeTo(null);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
+        // Populate top-left Category Filter dropdown with "All Categories" + the 8 fixed categories (US-01)
         categoryFilter.addItem("All Categories");
         for (Category c : Category.values()) {
             categoryFilter.addItem(c.getDisplayName());
         }
         EventDialog.styleGoldComboBox(categoryFilter);
 
+        // Top navigation bar with GLIDE branding and Category Filter
         JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 10));
         topPanel.setBackground(BG_PANEL);
         topPanel.setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, GOLD));
@@ -91,6 +105,7 @@ public class MainWindow extends JFrame {
         topPanel.add(sep);
         topPanel.add(categoryFilter);
 
+        // Style the 5-column schedule JTable
         eventTable.setBackground(BG_DARK);
         eventTable.setForeground(TEXT_LIGHT);
         eventTable.setGridColor(new Color(55, 60, 72));
@@ -107,6 +122,7 @@ public class MainWindow extends JFrame {
         header.setFont(new Font("SansSerif", Font.BOLD, 13));
         header.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, GOLD));
 
+        // Alternating dark row renderer with gold category highlights
         DefaultTableCellRenderer cellRenderer = new DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(JTable table, Object value,
@@ -132,6 +148,7 @@ public class MainWindow extends JFrame {
             eventTable.getColumnModel().getColumn(i).setCellRenderer(cellRenderer);
         }
 
+        // Allow double-clicking any row to open the Edit Event modal dialog directly (US-03)
         eventTable.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
@@ -149,6 +166,7 @@ public class MainWindow extends JFrame {
             BorderFactory.createLineBorder(GOLD_DIM, 1)
         ));
 
+        // Bottom CRUD toolbar with + Add Event, Edit Selected, Delete, and Refresh buttons (SDD Figure 6-1)
         JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 14, 12));
         bottomPanel.setBackground(BG_PANEL);
         bottomPanel.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, GOLD_DIM));
@@ -167,12 +185,14 @@ public class MainWindow extends JFrame {
         add(scrollPane, BorderLayout.CENTER);
         add(bottomPanel, BorderLayout.SOUTH);
 
+        // Bind button action listeners to CRUD handlers
         addBtn.addActionListener(e -> onAddClicked());
         editBtn.addActionListener(e -> onEditClicked());
         deleteBtn.addActionListener(e -> onDeleteClicked());
         refreshBtn.addActionListener(e -> refreshTable());
         categoryFilter.addActionListener(e -> refreshTable());
 
+        // Stop the AlertService background timer cleanly when the user closes the window
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
@@ -185,6 +205,7 @@ public class MainWindow extends JFrame {
         alerts.start();
     }
 
+    /** Creates a Black & Gold styled toolbar JButton. */
     private static JButton createStyledButton(String text, boolean primaryGold) {
         JButton btn = new JButton(text);
         btn.setFont(new Font("SansSerif", Font.BOLD, 12));
@@ -207,6 +228,7 @@ public class MainWindow extends JFrame {
         return btn;
     }
 
+    /** Seeds 4 realistic student-athlete commitments on first launch if glide.db is empty. */
     private void seedDemoEventsIfEmpty() {
         try {
             if (controller.getEvents(null).isEmpty()) {
@@ -228,6 +250,7 @@ public class MainWindow extends JFrame {
         }
     }
 
+    /** Programmatically renders the custom Black & Gold 'G' application window icon. */
     private static Image createGlideIcon() {
         BufferedImage img = new BufferedImage(64, 64, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g2 = img.createGraphics();
@@ -246,6 +269,10 @@ public class MainWindow extends JFrame {
         return img;
     }
 
+    /**
+     * Queries EventController for chronologically sorted events matching the selected Category filter
+     * and repopulates the 5-column JTable model (SDD Section 8.2).
+     */
     public final void refreshTable() {
         try {
             Category selected = categoryFilter.getSelectedIndex() <= 0
@@ -267,6 +294,7 @@ public class MainWindow extends JFrame {
         }
     }
 
+    /** Click 1 of the 3-Click Workflow: opens EventDialog in Create mode. */
     private void onAddClicked() {
         EventDialog dlg = new EventDialog(this, controller, null);
         if (dlg.showDialog()) {
@@ -274,6 +302,7 @@ public class MainWindow extends JFrame {
         }
     }
 
+    /** Opens EventDialog in Edit mode for the currently selected table row (US-03). */
     private void onEditClicked() {
         int row = eventTable.getSelectedRow();
         if (row < 0 || row >= currentEvents.size()) {
@@ -287,6 +316,7 @@ public class MainWindow extends JFrame {
         }
     }
 
+    /** Prompts for confirmation and deletes the selected event from SQLite (US-04 & TC-06). */
     private void onDeleteClicked() {
         int row = eventTable.getSelectedRow();
         if (row < 0 || row >= currentEvents.size()) {

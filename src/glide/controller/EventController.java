@@ -11,11 +11,12 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Validates event input, applies the event rules, and passes storage work to EventDAO.
+ * Application/Business Logic Controller (SDD Section 4.2 & Table 4-3).
+ * Enforces multi-rule input validation, smart reminder reset on edit, and DAO coordination.
  */
 public class EventController {
 
-    /** Allowed reminder lead times in minutes. 0 = remind at the event time. */
+    /** Whitelist of allowed reminder lead times in minutes (0 = remind at event start time). */
     public static final Set<Integer> ALERT_LEAD_TIMES = Set.of(0, 5, 10, 15, 30, 60, 120, 1440);
     public static final int MAX_TITLE_LENGTH = 100;
     public static final int MAX_DESCRIPTION_LENGTH = 500;
@@ -23,17 +24,23 @@ public class EventController {
 
     private final EventDAO dao;
 
-    public EventController() { this(new EventDAO()); }
-    public EventController(EventDAO dao) { this.dao = Objects.requireNonNull(dao); }
+    public EventController() {
+        this(new EventDAO());
+    }
+
+    public EventController(EventDAO dao) {
+        this.dao = Objects.requireNonNull(dao);
+    }
 
     /**
-     * Checks every rule and returns all problems found.
-     * An empty list means the input is valid.
+     * Evaluates all 5 domain validation rules without short-circuiting so the user sees
+     * every form error in a single pass (SDD Section 4.2 & TC-07 / TC-08).
      */
     public List<String> validateInputs(String title, String description, LocalDateTime dateTime,
                                        Category category, int alertLeadTime) {
         List<String> errors = new ArrayList<>();
 
+        // Rule 1: Title must be non-blank and <= 100 characters
         String trimmedTitle = title == null ? "" : title.trim();
         if (trimmedTitle.isEmpty()) {
             errors.add("Title is required.");
@@ -41,20 +48,24 @@ public class EventController {
             errors.add("Title must be " + MAX_TITLE_LENGTH + " characters or fewer.");
         }
 
+        // Rule 2: Optional description must not exceed 500 characters
         if (description != null && description.trim().length() > MAX_DESCRIPTION_LENGTH) {
             errors.add("Description must be " + MAX_DESCRIPTION_LENGTH + " characters or fewer.");
         }
 
+        // Rule 3: Date/time is required and must be strictly in the future
         if (dateTime == null) {
             errors.add("Date and time are required.");
         } else if (!dateTime.isAfter(LocalDateTime.now())) {
             errors.add("Event date and time must be in the future.");
         }
 
+        // Rule 4: Category must be selected from the 8 student-athlete categories
         if (category == null) {
             errors.add("Please choose a category.");
         }
 
+        // Rule 5: Reminder lead time must match one of the discrete offset choices
         if (!ALERT_LEAD_TIMES.contains(alertLeadTime)) {
             errors.add("Please choose a reminder time from the list.");
         }
@@ -62,13 +73,16 @@ public class EventController {
         return errors;
     }
 
+    /** Internal validation gate that throws ValidationException if any rule fails. */
     private void validate(Event e) throws ValidationException {
         List<String> errors = validateInputs(e.getTitle(), e.getDescription(), e.getDateTime(),
                 e.getCategory(), e.getAlertLeadTime());
-        if (!errors.isEmpty()) throw new ValidationException(errors);
+        if (!errors.isEmpty()) {
+            throw new ValidationException(errors);
+        }
     }
 
-    /** Validates, saves, and returns the new event's ID. Nothing is saved if validation fails. */
+    /** Validates inputs, creates a new Event, persists it to SQLite, and returns the new event_id. */
     public int addEvent(String title, String description, LocalDateTime dateTime,
                         Category category, int alertLeadTime) throws ValidationException {
         return addEvent(new Event(title, description, dateTime, category, alertLeadTime));
@@ -76,53 +90,63 @@ public class EventController {
 
     public int addEvent(Event event) throws ValidationException {
         validate(event);
-        event.setCompleted(false);
+        event.setCompleted(false); // New events always start in Scheduled (incomplete) status
         return dao.insertEvent(event);
     }
 
     /**
-     * Saves changes to an existing event.
-     * Changing the date/time or the alert lead time sets isCompleted back to false so the
-     * reminder fires again. Changing only the title, description, or category keeps the
-     * reminder status stored in the database.
-     *
-     * @throws DatabaseException "This event no longer exists." if the event was deleted
+     * Updates an existing event (US-03 & TC-05).
+     * Smart Reminder Reset: If the user changes dateTime or alertLeadTime, isCompleted resets
+     * to false so the reminder fires again at the newly scheduled time.
      */
     public boolean updateEvent(Event event) throws ValidationException {
         validate(event);
         Event original = dao.findEventById(event.getId());
-        if (original == null) throw new DatabaseException(NOT_FOUND_MESSAGE);
+        if (original == null) {
+            throw new DatabaseException(NOT_FOUND_MESSAGE);
+        }
 
+        // Check whether the event's timing or reminder offset was modified
         boolean timingChanged = !Objects.equals(original.getDateTime(), event.getDateTime())
                 || original.getAlertLeadTime() != event.getAlertLeadTime();
         event.setCompleted(timingChanged ? false : original.isCompleted());
 
-        if (!dao.updateEvent(event)) throw new DatabaseException(NOT_FOUND_MESSAGE);
+        if (!dao.updateEvent(event)) {
+            throw new DatabaseException(NOT_FOUND_MESSAGE);
+        }
         return true;
     }
 
-    /**
-     * Permanently deletes an event.
-     *
-     * @throws DatabaseException "This event no longer exists." if there was nothing to delete
-     */
+    /** Permanently deletes an event by ID, throwing DatabaseException if already removed (US-04). */
     public boolean deleteEvent(int id) {
-        if (!dao.deleteEvent(id)) throw new DatabaseException(NOT_FOUND_MESSAGE);
+        if (!dao.deleteEvent(id)) {
+            throw new DatabaseException(NOT_FOUND_MESSAGE);
+        }
         return true;
     }
 
-    /** Returns events in date order. A null filter returns every category. */
-    public List<Event> getEvents(Category filter) { return dao.getEvents(filter); }
+    /** Returns events sorted chronologically, optionally filtered by Category (US-01). */
+    public List<Event> getEvents(Category filter) {
+        return dao.getEvents(filter);
+    }
 
-    public Event findEventById(int id) { return dao.findEventById(id); }
+    public Event findEventById(int id) {
+        return dao.findEventById(id);
+    }
 
-    /** Events whose reminder has not fired and whose reminder time is at or before {@code now}. */
+    /** Returns all active (incomplete) events whose reminder trigger time has arrived. */
     public List<Event> getDueReminders(LocalDateTime now) {
         List<Event> results = new ArrayList<>();
-        for (Event e : dao.getActiveEvents()) if (e.isReminderDue(now)) results.add(e);
+        for (Event e : dao.getActiveEvents()) {
+            if (e.isReminderDue(now)) {
+                results.add(e);
+            }
+        }
         return results;
     }
 
-    /** Records that a reminder has fired so it is never shown twice (is_completed = 1). */
-    public void markCompleted(int id) { dao.markCompleted(id); }
+    /** Marks an event's reminder as completed (is_completed = 1) in SQLite. */
+    public void markCompleted(int id) {
+        dao.markCompleted(id);
+    }
 }

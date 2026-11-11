@@ -2,8 +2,12 @@ package glide.service;
 
 import glide.controller.EventController;
 
-/** Backwards-compatible name; delegates to the SDD AlertService. */
+/**
+ * Legacy compatibility alias that delegates directly to AlertService (SDD Section 4.4).
+ */
 @Deprecated
 public class ReminderService extends AlertService {
-    public ReminderService() { super(new EventController()); }
+    public ReminderService() {
+        super(new EventController());
+    }
 }
