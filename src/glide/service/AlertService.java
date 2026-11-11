@@ -9,6 +9,9 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
+import javax.sound.sampled.AudioFormat;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.SourceDataLine;
 import javax.swing.*;
 
 public class AlertService {
@@ -112,7 +115,40 @@ public class AlertService {
         return hrs + " hr " + rem + " min";
     }
 
+    private static void playReminderDing() {
+        Thread audioThread = new Thread(() -> {
+            try {
+                float sampleRate = 44100f;
+                int durationMs = 450;
+                int numSamples = (int) (durationMs * sampleRate / 1000);
+                byte[] buf = new byte[numSamples * 2];
+                for (int i = 0; i < numSamples; i++) {
+                    double t = i / sampleRate;
+                    double env = Math.exp(-6.0 * t);
+                    double wave = 0.65 * Math.sin(2.0 * Math.PI * 880.0 * t)
+                                + 0.35 * Math.sin(2.0 * Math.PI * 1318.5 * t);
+                    short val = (short) (wave * env * 22000);
+                    buf[2 * i] = (byte) (val & 0xff);
+                    buf[2 * i + 1] = (byte) ((val >> 8) & 0xff);
+                }
+                AudioFormat af = new AudioFormat(sampleRate, 16, 1, true, false);
+                try (SourceDataLine line = AudioSystem.getSourceDataLine(af)) {
+                    line.open(af);
+                    line.start();
+                    line.write(buf, 0, buf.length);
+                    line.drain();
+                }
+            } catch (Exception ex) {
+                Toolkit.getDefaultToolkit().beep();
+            }
+        }, "Glide-Ding");
+        audioThread.setDaemon(true);
+        audioThread.start();
+    }
+
     public void showReminderPopup(Event event, LocalDateTime now) {
+        playReminderDing();
+
         Color bgDark = new Color(18, 20, 24);
         Color gold = new Color(212, 175, 55);
         Color textLight = new Color(240, 240, 245);
