@@ -15,16 +15,12 @@ import javax.sound.sampled.SourceDataLine;
 import javax.swing.*;
 
 /**
- * Automated background reminder engine (SDD Section 4.4, Figure 4-2, & Section 6.4).
- * Uses a javax.swing.Timer on the Swing EDT to poll due events, play an audio chime,
- * and display an always-on-top Black & Gold reminder dialog with a "Dismiss" button.
+ * Automated background reminder engine that polls due events, plays an audible two-tone
+ * notification chime, and displays an always-on-top Black & Gold reminder dialog.
  */
 public class AlertService {
-    // 1-second polling interval so reminders pop up right as the clock changes
     public static final int POLL_INTERVAL_MS = 1000;
-    // Stale threshold: skip visual popups for events that started > 5 minutes ago (TC-09)
     public static final int MISSED_THRESHOLD_MINUTES = 5;
-    // 12-hour AM/PM timestamp format for student-friendly display
     public static final DateTimeFormatter DISPLAY_FORMAT =
         DateTimeFormatter.ofPattern("MM/dd/yyyy hh:mm a", Locale.US);
 
@@ -32,7 +28,7 @@ public class AlertService {
     private final Runnable onReminderProcessed;
     private final Timer timer;
     private boolean running = false;
-    private boolean checking = false; // Re-entrancy guard preventing overlapping timer ticks
+    private boolean checking = false;
 
     public AlertService(EventController controller) {
         this(controller, null);
@@ -41,11 +37,9 @@ public class AlertService {
     public AlertService(EventController controller, Runnable onReminderProcessed) {
         this.controller = controller;
         this.onReminderProcessed = onReminderProcessed;
-        // javax.swing.Timer executes callbacks safely on the Swing Event Dispatch Thread (EDT)
         this.timer = new Timer(POLL_INTERVAL_MS, e -> checkPendingReminders());
     }
 
-    /** Starts the background reminder timer and performs an immediate check. */
     public void start() {
         if (!running) {
             running = true;
@@ -54,7 +48,6 @@ public class AlertService {
         }
     }
 
-    /** Cleanly stops the background reminder timer on window close. */
     public void stop() {
         if (running) {
             running = false;
@@ -66,18 +59,11 @@ public class AlertService {
         return running;
     }
 
-    /** Evaluates pending reminders against the current system clock time. */
     public void checkPendingReminders() {
+        if (!running) return;
         checkAt(LocalDateTime.now());
     }
 
-    /**
-     * Core polling algorithm (SDD Figure 4-2):
-     * 1. Guards against re-entrant checks if a modal popup is already open.
-     * 2. Queries due events (is_completed = 0 and now >= reminderTime).
-     * 3. Marks each due event completed in SQLite BEFORE showing the popup (prevents duplicates).
-     * 4. Suppresses stale popups (> 5 mins past start time) and refreshes the JTable.
-     */
     void checkAt(LocalDateTime now) {
         if (checking) return;
         checking = true;
@@ -85,14 +71,12 @@ public class AlertService {
             List<Event> due = controller.getDueReminders(now);
             boolean anyProcessed = false;
             for (Event ev : due) {
-                // Commit completion state before rendering modal popup (SDD Section 4.4 Step 3)
                 controller.markCompleted(ev.getId());
                 anyProcessed = true;
                 if (shouldShowPopup(ev, now)) {
                     showReminderPopup(ev, now);
                 }
             }
-            // Trigger MainWindow JTable refresh if any event transitioned to "Completed"
             if (anyProcessed && onReminderProcessed != null) {
                 onReminderProcessed.run();
             }
@@ -103,13 +87,11 @@ public class AlertService {
         }
     }
 
-    /** Returns true if the event is within the 5-minute stale cutoff window (TC-09). */
     public static boolean shouldShowPopup(Event event, LocalDateTime now) {
         LocalDateTime cutoff = event.getDateTime().plusMinutes(MISSED_THRESHOLD_MINUTES);
         return !now.isAfter(cutoff);
     }
 
-    /** Builds the formatted reminder message text containing title, category, time, and countdown. */
     public static String buildReminderMessage(Event event, LocalDateTime now) {
         long mins = Duration.between(now, event.getDateTime()).toMinutes();
         String countdown = formatDuration(mins);
@@ -128,7 +110,6 @@ public class AlertService {
         return "Upcoming Event Reminder";
     }
 
-    /** Formats remaining minutes into a clean countdown string (e.g., "Now", "15 Minutes", "1 Hour"). */
     static String formatDuration(long minutes) {
         if (minutes <= 0) return "Now";
         if (minutes == 1) return "1 Minute";
@@ -139,23 +120,29 @@ public class AlertService {
         return hrs + " hr " + rem + " min";
     }
 
-    /**
-     * Synthesizes a two-tone harmonic chime (A5 + E6) on a daemon background thread
-     * when a reminder pops up, falling back to the OS system beep if audio lines are unavailable.
-     */
-    private static void playReminderDing() {
+    /** Plays a clear two-note rising bell chime (A5 -> E6) when a reminder triggers. */
+    public static void playReminderDing() {
         Thread audioThread = new Thread(() -> {
             try {
                 float sampleRate = 44100f;
-                int durationMs = 450;
-                int numSamples = (int) (durationMs * sampleRate / 1000);
-                byte[] buf = new byte[numSamples * 2];
-                for (int i = 0; i < numSamples; i++) {
-                    double t = i / sampleRate;
-                    double env = Math.exp(-6.0 * t); // Exponential decay envelope for bell chime
-                    double wave = 0.65 * Math.sin(2.0 * Math.PI * 880.0 * t)
-                                + 0.35 * Math.sin(2.0 * Math.PI * 1318.5 * t);
-                    short val = (short) (wave * env * 22000);
+                int firstSamples = (int) (0.18 * sampleRate);
+                int totalSamples = (int) (0.65 * sampleRate);
+                byte[] buf = new byte[totalSamples * 2];
+                for (int i = 0; i < totalSamples; i++) {
+                    double wave;
+                    double env;
+                    if (i < firstSamples) {
+                        double t = i / sampleRate;
+                        env = Math.exp(-5.0 * t);
+                        wave = 0.75 * Math.sin(2.0 * Math.PI * 880.0 * t)
+                             + 0.25 * Math.sin(2.0 * Math.PI * 1760.0 * t);
+                    } else {
+                        double t = (i - firstSamples) / sampleRate;
+                        env = Math.exp(-4.2 * t);
+                        wave = 0.70 * Math.sin(2.0 * Math.PI * 1318.5 * t)
+                             + 0.30 * Math.sin(2.0 * Math.PI * 2637.0 * t);
+                    }
+                    short val = (short) (wave * env * 28000);
                     buf[2 * i] = (byte) (val & 0xff);
                     buf[2 * i + 1] = (byte) ((val >> 8) & 0xff);
                 }
@@ -174,9 +161,6 @@ public class AlertService {
         audioThread.start();
     }
 
-    /**
-     * Displays the always-on-top modal Black & Gold reminder dialog (SDD Section 6.4 & Figure 6-3).
-     */
     public void showReminderPopup(Event event, LocalDateTime now) {
         playReminderDing();
 
@@ -184,7 +168,6 @@ public class AlertService {
         Color gold = new Color(212, 175, 55);
         Color textLight = new Color(240, 240, 245);
 
-        // Configure modal, always-on-top dialog so the alert interrupts background study/work (US-05)
         JDialog dialog = new JDialog((Frame) null, buildReminderTitle(event), true);
         dialog.setAlwaysOnTop(true);
 
@@ -244,7 +227,6 @@ public class AlertService {
 
         main.add(center, BorderLayout.CENTER);
 
-        // Single "Dismiss" button per SDD Figure 6-3 wireframe
         JButton dismissBtn = new JButton("Dismiss");
         dismissBtn.setBackground(gold);
         dismissBtn.setForeground(bgDark);
