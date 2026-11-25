@@ -7,9 +7,9 @@ Chad Lombardo, Jacob Wroblewski, Mark Dedvukaj, Roger Perez
 
 ---
 
-## What Glide Does
+## Overview
 
-Glide gives student-athletes a single offline dashboard to organize classes, exams, practices, games, study sessions, and work shifts without needing an internet connection or cloud account. It validates schedule entries, filters commitments chronologically by category, triggers audible and visual pop-up alerts ahead of deadlines, and saves all changes automatically to a local SQLite database.
+Glide gives student-athletes a single offline dashboard to track classes, exams, practices, games, study sessions, and work shifts without needing an internet connection or cloud account. It validates schedule inputs, organizes commitments chronologically, filters by category, triggers audible and visual pop-up alerts before deadlines, and saves every change automatically to a local SQLite database.
 
 ---
 
@@ -19,30 +19,63 @@ No Java installation or administrator permissions are required.
 
 1. Go to the [Latest Release](https://github.com/cmlombar-create/glide-desktop/releases/latest) page on this repository.
 2. Under **Assets**, click **`Glide-Windows-Portable.zip`** to download the portable bundle.
-3. Right-click **`Glide-Windows-Portable.zip`**, choose **Extract All...**, and click **Extract**.
+3. Right-click **`Glide-Windows-Portable.zip`**, select **Extract All...**, and click **Extract**.
 4. Open the extracted **`Glide`** folder and double-click **`Glide`** (`Glide.exe`) to launch the application.
-5. **Windows SmartScreen note:** If Windows displays a *"Windows protected your PC"* prompt on first launch, click **More info** and then click **Run anyway**.
+5. **Windows SmartScreen note:** Because this is an unsigned student build, Windows may show a *"Windows protected your PC"* prompt on first launch. Click **More info**, then click **Run anyway**.
 
 ---
 
-## How to Use Glide
+## User Guide: How to Use Glide
 
-* **Add an Event:** Click **+ Add Event** on the bottom toolbar, enter an Event Title, choose one of the 8 Categories (`Exam`, `Lecture`, `Homework`, `Practice`, `Game`, `Study`, `Work`, `Personal`), enter a future Date & Time (`MM/dd/yyyy hh:mm AM/PM`), choose a Reminder Offset, add optional Notes, and click **Save Event**.
-* **Edit an Event:** Double-click any row in the schedule (or select a row and click **Edit Selected**), modify any field, and click **Save Event**. Updating the date/time or reminder offset automatically re-arms the reminder.
-* **Clone an Event:** Select an existing event row and click **Clone Selected**. Glide opens the dialog pre-filled with that event's details so you can pick a new date/time for recurring classes, practices, or shifts and click **Save Event**.
-* **Filter by Category:** Use the **Category Filter** dropdown in the top bar to isolate a single category or select `All Categories` to view your entire chronological schedule.
-* **Delete an Event:** Select an event row, click **Delete**, and click **Yes** to permanently remove it.
-* **Audio & Pop-up Reminders:** Leave Glide open while studying or working. When an event reaches its reminder offset, Glide plays a two-tone notification chime and displays an always-on-top **Upcoming Event Reminder** dialog. Click **Dismiss** to close the alert; the event status automatically updates from `Scheduled` to `Completed`.
-* **Persistent Offline Storage:** Every addition, edit, clone, and deletion is saved immediately to `%LOCALAPPDATA%\Glide\glide.db`, keeping your schedule intact whenever you close and reopen the app.
+### 1. Understanding the Dashboard
+* **Top Bar (`Category Filter`):** Filters the schedule view between `All Categories` and any of the 8 built-in categories.
+* **Schedule Table:** Displays all scheduled events in chronological order (earliest to latest) across five columns: `Title`, `Date & Time`, `Category`, `Reminder Lead`, and `Status` (`Scheduled` or `Completed`).
+* **Viewing Event Notes:** Hover your mouse cursor over any row in the table to view that event's saved description notes in a pop-up tooltip.
+* **Bottom Toolbar:** Provides one-click access to **+ Add Event**, **Edit Selected**, **Clone Selected**, **Delete**, and **Refresh**.
 
----
+### 2. Adding a New Event
+1. Click the gold **`+ Add Event`** button on the bottom toolbar.
+2. **Event Title:** Enter a title between 1 and 100 characters (required).
+3. **Category:** Choose one of the 8 categories from the dropdown (`Exam`, `Lecture`, `Homework`, `Practice`, `Game`, `Study`, `Work`, `Personal`).
+4. **Date & Time:** Defaults to the next upcoming hour. Enter any future date and time using 12-hour AM/PM format (`MM/dd/yyyy hh:mm AM/PM`, such as `11/26/2026 02:30 PM`) or 24-hour format (`yyyy-MM-dd HH:mm`, such as `2026-11-26 14:30`).
+5. **Reminder Offset:** Defaults to `15 Mins Before`. Select when Glide should alert you (`At Event Time`, `5 Mins Before`, `10 Mins Before`, `15 Mins Before`, `30 Mins Before`, `1 Hour Before`, `2 Hours Before`, or `1 Day Before`).
+6. **Description (Optional):** Enter up to 500 characters of notes (for example, room numbers, equipment needed, or exam topics).
+7. Click **`Save Event`** (or press **Enter**). If a required field is missing or the date/time is in the past, Glide lists all validation issues in a pop-up without clearing your form so you can fix them right away.
 
+### 3. Editing an Existing Event
+1. **Double-click** any event row in the table, or click a row once to highlight it in gold and click **`Edit Selected`**.
+2. Modify the title, category, date/time, reminder offset, or description.
+3. Click **`Save Event`**.
+* **Smart Reminder Reset:** If an event is already marked `Completed` and you change its **Date & Time** or **Reminder Offset**, Glide automatically resets its status back to `Scheduled` so the alert triggers again at the updated time.
 
+### 4. Cloning an Event (For Recurring Classes, Practices, or Shifts)
+1. Click an existing event row in the table to highlight it, then click **`Clone Selected`** on the bottom toolbar.
+2. The **Clone Event** dialog opens pre-filled with that event's title (`(Copy)` added), category, reminder offset, and description. (If the original event's timestamp has already passed, Glide automatically advances the suggested date to tomorrow at the same time.)
+3. Adjust the **Date & Time** (or any other field) for the next occurrence and click **`Save Event`**.
+
+### 5. Filtering by Category & Refreshing
+* **Filter Schedule:** Click the **`Category Filter`** dropdown in the top bar and select a specific category (such as `Exam` or `Practice`) to view only matching commitments. Select **`All Categories`** to return to your full schedule.
+* **Manual Refresh:** Click **`Refresh`** on the bottom toolbar at any time to reload the current view from the database.
+
+### 6. Receiving & Testing Audio + Pop-up Reminders
+* Keep Glide open (either visible or minimized in the background). Glide checks active events once every second.
+* When the system clock reaches an event's reminder time (`Date & Time` minus `Reminder Offset`), Glide plays a two-tone notification chime and displays an always-on-top **Upcoming Event Reminder** window showing the event title, category, scheduled time, countdown, and notes.
+* Click **`Dismiss`** to close the alert. The event's `Status` changes from `Scheduled` to `Completed` so it will not alert you a second time.
+* **Missed-Alert Protection:** If Glide was closed during an event and you reopen the app more than 5 minutes after the scheduled start time, Glide marks the past event `Completed` without showing an outdated pop-up.
+* **Quick 10-Second Live Test (For Grading & Demos):** Click **`+ Add Event`**, enter `Test Alert`, set **Date & Time** to **2 minutes from the current clock time**, set **Reminder Offset** to **`5 Mins Before`**, and click **`Save Event`**. Because the current time is already inside the 5-minute reminder window, the audio chime and pop-up alert will trigger immediately.
+
+### 7. Deleting an Event
+1. Click an event row in the table to select it, then click **`Delete`** on the bottom toolbar.
+2. Click **`Yes`** in the confirmation prompt to permanently remove the event.
+
+### 8. Automatic Offline Saving
+* Glide saves every addition, edit, clone, status update, and deletion immediately to a local SQLite database at `%LOCALAPPDATA%\Glide\glide.db`.
+* You can close and reopen Glide at any time without losing your schedule or needing to click a separate save button.
 
 ---
 
 ## Tech Stack
 
 * **Language & UI:** Java SE 17+, Java Swing
-* **Database:** Embedded SQLite 3 (Xerial `sqlite-jdbc`)
+* **Database:** Embedded SQLite 3 (Xerial `sqlite-jdbc`) with parameterized `PreparedStatement` queries
 * **Packaging:** Native OpenJDK `jpackage` Windows runtime bundle (`Glide.exe` + private JRE)
